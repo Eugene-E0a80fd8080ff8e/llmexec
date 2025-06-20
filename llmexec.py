@@ -1,0 +1,243 @@
+#!/usr/bin/env python3
+"""
+llmexec - LLM-powered shebang script executor
+Converts natural language requests into executable Python code using LLM APIs
+"""
+
+import os
+import sys
+import argparse
+import subprocess
+import tempfile
+from pathlib import Path
+
+try:
+    import litellm
+except ImportError:
+    print("Error: litellm package is required. Install with: pip install litellm", file=sys.stderr)
+    sys.exit(1)
+
+# System prompt for code generation
+SYSTEM_PROMPT = """You are a code generation assistant that creates Python scripts based on natural language requests. Your task is to convert user requests into complete, executable Python programs.
+
+## Core Requirements
+
+1. **Output Format**: Always respond with a complete Python script that can be executed directly
+2. **Imports**: Include all necessary imports at the top of the script
+3. **Error Handling**: Add appropriate error handling for file operations, network requests, etc.
+4. **Cross-platform**: Write code that works on Windows, macOS, and Linux when possible
+5. **Dependencies**: Use only standard library modules when possible. If external libraries are needed, include a comment at the top listing required packages
+
+## Code Structure
+
+```python
+#!/usr/bin/env python3
+# Required packages: package1, package2 (if any external dependencies)
+
+import os
+import sys
+# other imports...
+
+def main():
+    # Your code here
+    pass
+
+if __name__ == "__main__":
+    main()
+```
+
+## Guidelines
+
+### File Operations
+- Always check if files/directories exist before operating on them
+- Use `os.path.join()` or `pathlib.Path` for cross-platform path handling
+- Handle permissions errors gracefully
+- For batch operations, show progress when processing multiple files
+
+### Safety
+- Never overwrite files without checking if they exist (unless explicitly requested)
+- For destructive operations, consider adding confirmation prompts
+- Validate input parameters before processing
+
+### Output
+- Provide informative output about what the script is doing
+- Use `print()` statements to show progress for long-running operations
+- Format output clearly and consistently
+
+### Common Patterns
+- **Directory listing**: Use `os.listdir()` or `pathlib.Path.iterdir()`
+- **File filtering**: Use `glob.glob()` or list comprehensions with appropriate filters
+- **Image processing**: Use PIL/Pillow for image operations
+- **Text processing**: Handle encoding properly (UTF-8 by default)
+- **Network operations**: Include timeouts and error handling
+
+Remember: Generate complete, ready-to-run Python scripts that accomplish exactly what the user requested. Only output the Python code, no explanations or markdown formatting."""
+
+
+def generate_code(model, prompt):
+    """Generate code using LiteLLM"""
+    try:
+        # Set temperature low for more consistent code generation
+        response = litellm.completion(
+            model=model,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.1,
+            max_tokens=4000
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        raise RuntimeError(f"LLM API error: {e}")
+
+
+def extract_python_code(response):
+    """Extract Python code from LLM response, handling various formats"""
+    lines = response.split('\n')
+    
+    # Look for code block markers
+    in_code_block = False
+    code_lines = []
+    
+    for line in lines:
+        if line.strip().startswith('```'):
+            if in_code_block:
+                break
+            else:
+                in_code_block = True
+                continue
+        
+        if in_code_block:
+            code_lines.append(line)
+        elif line.strip().startswith('#!/usr/bin/env python') or line.strip().startswith('import '):
+            # Looks like raw Python code without code blocks
+            code_lines = lines
+            break
+    
+    code = '\n'.join(code_lines).strip()
+    
+    # If no code found, return the entire response (might be raw Python)
+    if not code:
+        code = response.strip()
+    
+    return code
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="LLM-powered shebang script executor",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  llmexec --model gpt-4 script.llm
+  llmexec --model claude-3-sonnet-20240229 --execute script.llm
+  llmexec --model gpt-4 --dry-run script.llm
+  llmexec --model gemini-pro script.llm
+  llmexec --model ollama/llama2 script.llm
+
+Supported models (via LiteLLM):
+  - OpenAI: gpt-4, gpt-3.5-turbo, gpt-4-turbo, etc.
+  - Anthropic: claude-3-opus-20240229, claude-3-sonnet-20240229, etc.
+  - Google: gemini-pro, gemini-pro-vision
+  - Local: ollama/model-name, together_ai/model-name
+  - And many more providers supported by LiteLLM
+
+Environment variables for API keys:
+  - OPENAI_API_KEY (for OpenAI models)
+  - ANTHROPIC_API_KEY (for Anthropic models)  
+  - GOOGLE_API_KEY (for Google models)
+  - See LiteLLM docs for other providers
+        """
+    )
+    
+    parser.add_argument("script", help="Script file containing natural language request")
+    parser.add_argument("--model", default="gemini/gemini-2.5-flash", help="LLM model to use (default: gemini/gemini-2.5-flash)")
+    parser.add_argument("--execute", "-x", action="store_true", help="Execute the generated code immediately")
+    parser.add_argument("--output", "-o", help="Save generated Python code to file")
+    parser.add_argument("--dry-run", action="store_true", help="Show generated code without executing")
+    parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
+    
+    args = parser.parse_args()
+    
+    # Read the script file
+    try:
+        with open(args.script, 'r', encoding='utf-8') as f:
+            content = f.read().strip()
+    except FileNotFoundError:
+        print(f"Error: Script file '{args.script}' not found", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error reading script file: {e}", file=sys.stderr)
+        sys.exit(1)
+    
+    # Skip shebang line if present
+    lines = content.split('\n')
+    if lines[0].startswith('#!'):
+        content = '\n'.join(lines[1:]).strip()
+    
+    if not content:
+        print("Error: Empty script content", file=sys.stderr)
+        sys.exit(1)
+    
+    if args.verbose:
+        print(f"Using model: {args.model}")
+        print(f"Request: {content}")
+        print("-" * 50)
+    
+    # Generate code using LLM
+    try:
+        response = generate_code(args.model, content)
+        python_code = extract_python_code(response)
+        
+        if args.verbose:
+            print("Generated code:")
+            print("-" * 50)
+        
+        if args.dry_run or args.verbose:
+            print(python_code)
+            if args.dry_run:
+                sys.exit(0)
+        
+        # Save to output file if specified
+        if args.output:
+            with open(args.output, 'w', encoding='utf-8') as f:
+                f.write(python_code)
+            if args.verbose:
+                print(f"\nCode saved to: {args.output}")
+        
+        # Execute the code
+        if args.execute or not args.output:
+            if args.verbose:
+                print("\nExecuting generated code:")
+                print("-" * 50)
+            
+            # Create temporary file and execute
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8') as f:
+                f.write(python_code)
+                temp_file = f.name
+            
+            try:
+                # Change to the directory of the original script
+                script_dir = os.path.dirname(os.path.abspath(args.script))
+                os.chdir(script_dir)
+                
+                # Execute the generated Python code
+                result = subprocess.run([sys.executable, temp_file], 
+                                      capture_output=False, 
+                                      text=True)
+                sys.exit(result.returncode)
+            finally:
+                # Clean up temporary file
+                try:
+                    os.unlink(temp_file)
+                except:
+                    pass
+    
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

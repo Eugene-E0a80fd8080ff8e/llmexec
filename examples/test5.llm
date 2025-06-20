@@ -1,0 +1,4 @@
+#!/usr/bin/env -S ../llmexec.py --model gpt-4.1
+
+resize all the images in directory "imgs" to fit inside 320x320.
+save resized images as a.resized.jpg (for initial a.jpg)

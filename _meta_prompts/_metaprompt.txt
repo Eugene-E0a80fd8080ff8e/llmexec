@@ -1,0 +1,17 @@
+I am writing a llm agent "llmexec" that will serve as a shebang script for llm scripting.
+For example, consider this script:
+```
+#!/usr/bin/env -S llmexec --model gpt-4.1
+
+list all the files at current directory
+```
+or
+
+```
+#!/usr/bin/env -S llmexec --model gpt-4.1
+
+resize all the images in current directory to fit 320x320.
+save resized images as a.resized.jpg (for initial a.jpg)
+```
+
+I need a system prompt for llmexec which, given the request as a user input, would make me a python program doing exactly that
