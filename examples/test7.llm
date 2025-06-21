@@ -1,0 +1,5 @@
+#!/bin/bash
+
+DATEANDTIME=`llmexec "print current date and time in yyyy-mm-dd hh:mm:ss format. Make sure it is 24-hours format and has all leading zeros. make that program output only yyyy-mm-dd hh:mm:ss , no additional text"`
+
+echo "result: $DATEANDTIME"

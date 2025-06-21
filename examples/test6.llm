@@ -1,0 +1,3 @@
+#!../llmexec.py
+
+print current date and time in yyyy-mm-dd hh:mm:ss format. Make sure it is 24-hours format and has all leading zeros

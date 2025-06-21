@@ -4,42 +4,44 @@ A shebang interpreter that converts natural language requests into executable Py
 
 ## Overview
 
-`llmexec` allows you to write "scripts" in plain English that get automatically converted to Python code and executed. It's like having an AI assistant that writes code for you on-the-fly.
-
-## Features
-
-- 🚀 **Shebang Support**: Use as a script interpreter with `#!/usr/bin/env -S llmexec`
-- 🤖 **Multiple LLM Providers**: Supports 100+ models via LiteLLM (OpenAI, Anthropic, Google, Ollama, etc.)
-- 🛡️ **Safety First**: Generated code includes error handling and safety checks
-- 🔧 **Flexible Execution**: Execute immediately, save to file, or preview with dry-run
-- 📁 **Context Aware**: Runs in the directory of your script file
-- 🎯 **Optimized for Code**: Uses specialized prompts for generating clean, executable Python
+`llmexec` allows you to write scripts in plain English that get automatically converted to Python code and executed.
 
 ## Installation
 
 1. **Install dependencies**:
    ```bash
-   pip install litellm
+   pip install litellm python-dotenv
    ```
 
 2. **Download and install llmexec**:
    ```bash
-   # Download the script
-   curl -o llmexec https://raw.githubusercontent.com/yourusername/llmexec/main/llmexec
-   
-   # Make it executable
-   chmod +x llmexec
-   
-   # Move to PATH (optional)
-   sudo mv llmexec /usr/local/bin/
+   curl -o ~/.local/bin/llmexec https://raw.githubusercontent.com/Eugene-E0a80fd8080ff8e/llmexec/main/llmexec
+   chmod +x ~/.local/bin/llmexec
    ```
 
+   This will download the script to the user's local bin folder.
+
 3. **Set up API keys**:
+   `llmexec` uses environment variables for API keys. You can set them directly in your shell or use a `.env` file.
+
+   **Option A: .env file**
+   Create a file named `.env` in your project directory or in your $HOME directory with your API keys:
+   ```
+   OPENAI_API_KEY="sk-..."
+   OPENROUTER_API_KEY="sk-or-..."
+   GEMINI_API_KEY="AI..."
+   ```
+   `llmexec` will automatically load these variables if `python-dotenv` is installed. Please note that dotenv searches for .env files recursively at every parent.
+
+   **Option B: Environment Variables**
    ```bash
    export OPENAI_API_KEY="your-openai-key"
-   export ANTHROPIC_API_KEY="your-anthropic-key"
-   export GOOGLE_API_KEY="your-google-key"
+   export OPENROUTER_API_KEY="your-openrouter-key"
+   export GEMINI_API_KEY="your-google-ai-studio-api-key"
    ```
+   For other providers, see LiteLLM documentation: https://docs.litellm.ai/docs/proxy/config_settings
+
+4. You can change the default LLM model inside the script itself.
 
 ## Quick Start
 
@@ -47,8 +49,8 @@ A shebang interpreter that converts natural language requests into executable Py
 
 Create a file `hello.llm`:
 ```
-#!/usr/bin/env -S llmexec --model gpt-4 --execute
-print "Hello, World!" and the current date and time
+#!/usr/bin/env -S llmexec --model "gemini/gemini-2.5-flash"
+make a "Hello, World!" program
 ```
 
 Make it executable and run:
@@ -60,44 +62,47 @@ chmod +x hello.llm
 ### Method 2: Command Line
 
 ```bash
-# Create a simple script file
-echo "list all Python files in current directory with their sizes" > task.llm
+llmexec "print current date and time in yyyy-mm-dd hh:mm:ss format. Make sure it is 24-hours format and has all leading zeros"
+```
 
-# Execute with llmexec
-llmexec --model gpt-4 --execute task.llm
+### Method 3: Evaluation within backticks
+
+```bash
+DATEANDTIME=`llmexec "print current date and time in yyyy-mm-dd hh:mm:ss format. Make sure it is 24-hours format and has all leading zeros. make that program output only yyyy-mm-dd hh:mm:ss , no additional text"`
+echo "result: $DATEANDTIME"
 ```
 
 ## Examples
 
 ### File Operations
 ```
-#!/usr/bin/env -S llmexec --model gpt-4 --execute
+#!/usr/bin/env -S llmexec
 list all files in current directory, show their sizes in human readable format
 ```
 
 ### Image Processing
 ```
-#!/usr/bin/env -S llmexec --model gpt-4 --execute
+#!/usr/bin/env -S llmexec
 resize all JPEG images in current directory to fit within 800x600 pixels.
 save resized images with .resized.jpg extension
 ```
 
 ### Data Processing
 ```
-#!/usr/bin/env -S llmexec --model claude-3-sonnet-20240229 --execute
+#!/usr/bin/env -S llmexec
 read all CSV files in current directory and create a summary report
 showing the number of rows and columns in each file
 ```
 
 ### System Information
 ```
-#!/usr/bin/env -S llmexec --model gpt-4 --execute
+#!/usr/bin/env -S llmexec
 show system information: OS, CPU, memory usage, and disk space
 ```
 
 ### Web Scraping
 ```
-#!/usr/bin/env -S llmexec --model gpt-4 --execute
+#!/usr/bin/env -S llmexec
 fetch the latest news headlines from hackernews and save them to a file
 ```
 
@@ -107,7 +112,7 @@ fetch the latest news headlines from hackernews and save them to a file
 llmexec [OPTIONS] SCRIPT_FILE
 
 Options:
-  --model MODEL         LLM model to use (default: gpt-4)
+  --model MODEL         LLM model to use (default: gemini/gemini-2.5-flash)
   --execute, -x         Execute the generated code immediately
   --output FILE, -o     Save generated Python code to file
   --dry-run            Show generated code without executing
@@ -136,7 +141,7 @@ llmexec --model gpt-4 --verbose --execute myscript.llm
 Thanks to LiteLLM, `llmexec` supports 100+ models from various providers:
 
 ### Cloud Providers
-- **OpenAI**: `gpt-4`, `gpt-4-turbo`, `gpt-3.5-turbo`, `o1-preview`
+- **OpenAI**: `gpt-4`, `gpt-4-turbo`, `gpt-3.5-turbo`
 - **Anthropic**: `claude-3-opus-20240229`, `claude-3-sonnet-20240229`, `claude-3-haiku-20240307`
 - **Google**: `gemini-pro`, `gemini-pro-vision`
 - **Cohere**: `command-r`, `command-r-plus`
@@ -147,6 +152,9 @@ Thanks to LiteLLM, `llmexec` supports 100+ models from various providers:
 
 ### API Keys
 
+`llmexec` automatically picks up API keys from environment variables. You can set them directly or use a `.env` file.
+
+**Environment Variables:**
 Set the appropriate environment variable for your chosen provider:
 
 ```bash
@@ -160,6 +168,16 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 export GOOGLE_API_KEY="AI..."
 
 # For other providers, see LiteLLM documentation
+```
+
+**Using a .env file:**
+If you have `python-dotenv` installed (`pip install python-dotenv`), `llmexec` will automatically load environment variables from a `.env` file found in the current working directory or any parent directory. This is a convenient way to manage your API keys without setting them globally.
+
+Example `.env` file:
+```
+OPENAI_API_KEY="sk-..."
+ANTHROPIC_API_KEY="sk-ant-..."
+GOOGLE_API_KEY="AI..."
 ```
 
 ## How It Works
@@ -293,6 +311,6 @@ MIT License - see LICENSE file for details.
 
 ## Support
 
-- 📧 Issues: [GitHub Issues](https://github.com/yourusername/llmexec/issues)
-- 💬 Discussions: [GitHub Discussions](https://github.com/yourusername/llmexec/discussions)
+- 📧 Issues: [GitHub Issues](https://github.com/Eugene-E0a80fd8080ff8e/llmexec/issues)
+- 💬 Discussions: [GitHub Discussions](https://github.com/Eugene-E0a80fd8080ff8e/llmexec/discussions)
 - 📚 LiteLLM Docs: [docs.litellm.ai](https://docs.litellm.ai)

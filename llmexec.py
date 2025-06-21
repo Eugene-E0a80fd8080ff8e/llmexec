@@ -17,6 +17,12 @@ except ImportError:
     print("Error: litellm package is required. Install with: pip install litellm", file=sys.stderr)
     sys.exit(1)
 
+try:
+    from dotenv import load_dotenv
+    _DOTENV_AVAILABLE = True
+except ImportError:
+    _DOTENV_AVAILABLE = False
+
 # System prompt for code generation
 SYSTEM_PROMPT = """You are a code generation assistant that creates Python scripts based on natural language requests. Your task is to convert user requests into complete, executable Python programs.
 
@@ -125,29 +131,31 @@ def extract_python_code(response):
 
 
 def main():
+    # Load environment variables from .env file if dotenv is available
+    if _DOTENV_AVAILABLE:
+        load_dotenv()
+    else:
+        print("Warning: python-dotenv not installed. Environment variables will not be loaded from .env file.", file=sys.stderr)
+
     parser = argparse.ArgumentParser(
         description="LLM-powered shebang script executor",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  llmexec --model gpt-4 script.llm
-  llmexec --model claude-3-sonnet-20240229 --execute script.llm
-  llmexec --model gpt-4 --dry-run script.llm
-  llmexec --model gemini-pro script.llm
-  llmexec --model ollama/llama2 script.llm
+  llmexec "say hello"
+  llmexec --model gpt-4.1 --execute script.llm
+  llmexec --model gpt-4.1 --dry-run script.llm
+  llmexec --model gemini-2.5-pro script.llm
+  echo `llmexec "say hello world!"`
 
-Supported models (via LiteLLM):
-  - OpenAI: gpt-4, gpt-3.5-turbo, gpt-4-turbo, etc.
-  - Anthropic: claude-3-opus-20240229, claude-3-sonnet-20240229, etc.
-  - Google: gemini-pro, gemini-pro-vision
-  - Local: ollama/model-name, together_ai/model-name
-  - And many more providers supported by LiteLLM
+  You can change default model in the script itself. Normally it would be located at ~/.local/bin/llmexec
 
 Environment variables for API keys:
   - OPENAI_API_KEY (for OpenAI models)
   - ANTHROPIC_API_KEY (for Anthropic models)  
   - GOOGLE_API_KEY (for Google models)
-  - See LiteLLM docs for other providers
+  - OPENROUTER_API_KEY (for the models accessible via OpenRouter)
+  - See LiteLLM docs for other providers: https://docs.litellm.ai/docs/proxy/config_settings
         """
     )
     
@@ -160,16 +168,20 @@ Environment variables for API keys:
     
     args = parser.parse_args()
     
-    # Read the script file
-    try:
-        with open(args.script, 'r', encoding='utf-8') as f:
-            content = f.read().strip()
-    except FileNotFoundError:
-        print(f"Error: Script file '{args.script}' not found", file=sys.stderr)
-        sys.exit(1)
-    except Exception as e:
-        print(f"Error reading script file: {e}", file=sys.stderr)
-        sys.exit(1)
+    # Determine if the script argument is a file or a direct message
+    script_path = Path(args.script)
+    if script_path.is_file():
+        try:
+            with open(script_path, 'r', encoding='utf-8') as f:
+                content = f.read().strip()
+        except Exception as e:
+            print(f"Error reading script file '{script_path}': {e}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        # If it's not a file, treat the argument as the content itself
+        content = args.script
+        if args.verbose:
+            print(f"'{args.script}' is not a file. Interpreting as direct message.", file=sys.stderr)
     
     # Skip shebang line if present
     lines = content.split('\n')
