@@ -10,7 +10,7 @@ A shebang interpreter that converts natural language requests into executable Py
 
 1. **Install dependencies**:
    ```bash
-   pip install litellm python-dotenv
+   pip install litellm python-dotenv platformdirs
    ```
 
 2. **Download and install llmexec**:
@@ -117,6 +117,8 @@ Options:
   --output FILE, -o     Save generated Python code to file
   --dry-run            Show generated code without executing
   --verbose, -v        Verbose output
+  --cache-ttl SECONDS  Cache time-to-live in seconds (0 for infinite, -1 to disable for this call)
+  --no-cache           Disable caching for this call
   --help, -h           Show help message
 ```
 
@@ -134,6 +136,37 @@ llmexec --model claude-3-sonnet-20240229 --output generated.py myscript.llm
 
 # Verbose output
 llmexec --model gpt-4 --verbose --execute myscript.llm
+```
+
+## Caching
+
+`llmexec` implements a custom caching mechanism for LLM responses to reduce API calls and speed up repeated requests.
+
+**Cache Location Priority:**
+1. If a directory named `.llmexec-cache` exists in the current working directory, it will be used for caching.
+2. Otherwise, the system's default user cache directory (e.g., `~/.cache/llmexec` on Linux) will be used.
+
+**Cache Control Options:**
+- `--cache-ttl SECONDS`: Sets the time-to-live for cached responses in seconds.
+    - `0` (default): Cache entries never expire.
+    - `> 0`: Cache entries expire after the specified number of seconds.
+    - `-1`: Disables caching for the current `llmexec` call.
+- `--no-cache`: A flag to completely disable caching for the current call, overriding `--cache-ttl`.
+
+**Examples:**
+
+```bash
+# Use cached response if available (infinite TTL)
+llmexec "say hello"
+
+# Cache response for 1 hour (3600 seconds)
+llmexec --cache-ttl 3600 "generate a python script to list files"
+
+# Disable caching for a specific call
+llmexec --no-cache "what is the capital of France?"
+
+# Disable caching using cache-ttl
+llmexec --cache-ttl -1 "what is the capital of France?"
 ```
 
 ## Supported Models

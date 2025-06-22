@@ -5,11 +5,17 @@ Converts natural language requests into executable Python code using LLM APIs
 """
 
 import os
+import re
 import sys
 import argparse
 import subprocess
 import tempfile
+import json
+import hashlib
+import time
 from pathlib import Path
+from platformdirs import PlatformDirs
+
 
 try:
     import litellm
@@ -22,6 +28,15 @@ try:
     _DOTENV_AVAILABLE = True
 except ImportError:
     _DOTENV_AVAILABLE = False
+
+
+PLATFORMDIRS = PlatformDirs(appname="llmexec", appauthor="Eugene-E0a80fd8080ff8e on github")
+local_cache_dir = Path.cwd() / ".llmexec-cache"
+if local_cache_dir.is_dir():
+    cache_dir = local_cache_dir
+else:
+    cache_dir = PLATFORMDIRS.user_cache_dir
+os.makedirs(cache_dir, exist_ok=True)
 
 # System prompt for code generation
 SYSTEM_PROMPT = """You are a code generation assistant that creates Python scripts based on natural language requests. Your task is to convert user requests into complete, executable Python programs.
@@ -80,8 +95,45 @@ if __name__ == "__main__":
 Remember: Generate complete, ready-to-run Python scripts that accomplish exactly what the user requested. Only output the Python code, no explanations or markdown formatting."""
 
 
-def generate_code(model, prompt):
-    """Generate code using LiteLLM"""
+def get_cache_path(model, prompt):
+    """Generate a unique cache file path based on model and prompt."""
+    # Create a hash of the model and prompt to use as filename
+    # This ensures a unique, yet consistent, filename for each query
+    p = re.sub("[. ]","_",prompt)
+    p = re.sub("[^-_A-Za-z0-9]","",p)
+    p = p[:30]
+
+    m = model[model.rfind("/")+1:]
+    m = re.sub("[.]","_",m)
+    m = re.sub("[^-_A-Za-z0-9]","",m)
+
+    prompt_hash = hashlib.sha256(f"{model}-{prompt}".encode('utf-8')).hexdigest()
+    return Path(cache_dir) / f"{p}.{m}.{prompt_hash[:10]}.json"
+
+
+def generate_code(model, prompt, cache_ttl=0, no_cache=False, verbose=False):
+    """Generate code using LiteLLM with custom caching."""
+    cache_file = get_cache_path(model, prompt)
+
+    if not no_cache and cache_file.exists():
+        # Check if cache is still valid
+        if cache_ttl > 0:
+            file_age = time.time() - cache_file.stat().st_mtime
+            if file_age < cache_ttl:
+                if verbose:
+                    print(f"Using cached response from {cache_file}", file=sys.stderr)
+                with open(cache_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)['content']
+            else:
+                if verbose:
+                    print(f"Cache expired for {cache_file}", file=sys.stderr)
+                os.remove(cache_file) # Invalidate cache
+        else: # cache_ttl == 0 means infinite cache
+            if verbose:
+                print(f"Using cached response from {cache_file}", file=sys.stderr)
+            with open(cache_file, 'r', encoding='utf-8') as f:
+                return json.load(f)['content']
+
     try:
         # Set temperature low for more consistent code generation
         response = litellm.completion(
@@ -93,7 +145,16 @@ def generate_code(model, prompt):
             temperature=0.1,
             max_tokens=4000
         )
-        return response.choices[0].message.content.strip()
+        generated_content = response.choices[0].message.content.strip()
+
+        # Save to cache
+        if not no_cache:
+            with open(cache_file, 'w', encoding='utf-8') as f:
+                json.dump({'model': model, 'prompt': prompt, 'content': generated_content, 'timestamp': time.time()}, f, indent=4, ensure_ascii=False)
+            if verbose:
+                print(f"Cached response to {cache_file}", file=sys.stderr)
+
+        return generated_content
     except Exception as e:
         raise RuntimeError(f"LLM API error: {e}")
 
@@ -165,6 +226,8 @@ Environment variables for API keys:
     parser.add_argument("--output", "-o", help="Save generated Python code to file")
     parser.add_argument("--dry-run", action="store_true", help="Show generated code without executing")
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
+    parser.add_argument("--cache-ttl", type=int, default=0, help="Cache time-to-live in seconds (0 for infinite, -1 to disable caching for this call)")
+    parser.add_argument("--no-cache", action="store_true", help="Disable caching for this call")
     
     args = parser.parse_args()
     
@@ -199,7 +262,13 @@ Environment variables for API keys:
     
     # Generate code using LLM
     try:
-        response = generate_code(args.model, content)
+        response = generate_code(
+            args.model,
+            content,
+            cache_ttl=args.cache_ttl,
+            no_cache=args.no_cache or args.cache_ttl == -1,
+            verbose=args.verbose
+        )
         python_code = extract_python_code(response)
         
         if args.verbose:
