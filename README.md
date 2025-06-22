@@ -64,7 +64,7 @@ llmexec --model o4-mini "check which version of ubuntu is present at the \"myser
 
 ## Quick Start
 
-### Method 1: Shebang Scripts (Recommended)
+### Method 1: Shebang Scripts
 
 Create a file `hello.llm`:
 ```
@@ -77,6 +77,8 @@ Make it executable and run:
 chmod +x hello.llm
 ./hello.llm
 ```
+
+The generated script will be cached for future use at ~/.local/cache/llmexec/
 
 ### Method 2: Command Line
 
