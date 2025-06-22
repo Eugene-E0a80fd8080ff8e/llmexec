@@ -1,6 +1,25 @@
 # llmexec
 
-A shebang interpreter that converts natural language requests into executable Python code using Large Language Models (LLMs).
+## Short Introduction
+
+```bash
+llmexec "say hello"
+```
+
+```bash
+llmexec "print current date and time in yyyy-mm-dd hh:mm:ss format. Make sure it is 24-hours format and has all leading zeros"
+```
+
+```bash
+TD=`llmexec "print current date and time in yymmdd-hhmmss format. Make sure it is 24-hours format and has all leading zeros"`
+echo $TD
+llmexec "backup all the files from ~/.ssh to $TD-dot-ssh.tar.gz"
+```
+
+```bash
+llmexec --model o4-mini "check which version of ubuntu is present at the \"myserver.somewhere.ii\" server"
+```
+
 
 ## Overview
 

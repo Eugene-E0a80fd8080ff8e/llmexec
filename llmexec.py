@@ -135,6 +135,8 @@ def generate_code(model, prompt, cache_ttl=0, no_cache=False, verbose=False):
                 return json.load(f)['content']
 
     try:
+        # Drop unsupported parameters for certain models
+        litellm.drop_params = True
         # Set temperature low for more consistent code generation
         response = litellm.completion(
             model=model,
@@ -299,9 +301,10 @@ Environment variables for API keys:
                 temp_file = f.name
             
             try:
-                # Change to the directory of the original script
-                script_dir = os.path.dirname(os.path.abspath(args.script))
-                os.chdir(script_dir)
+                if content != args.script:
+                    # Change to the directory of the original script
+                    script_dir = os.path.dirname(os.path.abspath(args.script))
+                    os.chdir(script_dir)
                 
                 # Execute the generated Python code
                 result = subprocess.run([sys.executable, temp_file], 
