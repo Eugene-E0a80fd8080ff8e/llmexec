@@ -20,6 +20,9 @@ llmexec "backup all the files from ~/.ssh to $TD-dot-ssh.tar.gz"
 llmexec --model o4-mini "check which version of ubuntu is present at the \"myserver.somewhere.ii\" server"
 ```
 
+```bash
+llmexec "create http server out of this folder. use python. use port 8080"
+```
 
 ## Overview
 
